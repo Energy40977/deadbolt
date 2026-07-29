@@ -307,7 +307,7 @@ impl Finding {
 
         let mut hasher = Sha256::new();
         hasher.update(format!("{}|{}|{}", self.rule, file, normalized).as_bytes());
-        format!("{:x}", hasher.finalize())[..16].to_string()
+        hex(&hasher.finalize())[..16].to_string()
     }
 }
 
@@ -674,6 +674,24 @@ pub struct Score {
     pub counts: BTreeMap<String, usize>,
 }
 
+/// Lowercase hex of a digest.
+///
+/// `sha2` 0.11 returns `Array` rather than `GenericArray`, and `Array` does not
+/// implement `LowerHex`, so `format!("{:x}", ..)` no longer compiles. The encoding
+/// has to stay byte-for-byte identical to what that produced: fingerprints are
+/// stored in `.deadbolt-baseline.json` and in the AI cache, and a different string
+/// would silently invalidate every accepted finding and every cached answer in
+/// every project using this tool.
+pub fn hex(bytes: &[u8]) -> String {
+    use std::fmt::Write;
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut out, byte| {
+            let _ = write!(out, "{byte:02x}");
+            out
+        })
+}
+
 /// Canonical finding order.
 ///
 /// The parallel scan collects per-thread results in completion order while the
@@ -768,6 +786,31 @@ impl AuditReport {
             by_category,
             counts: self.counts(),
         };
+    }
+}
+
+#[cfg(test)]
+mod hex_tests {
+    use super::hex;
+    use sha2::{Digest, Sha256};
+
+    #[test]
+    fn the_encoding_is_pinned_because_fingerprints_are_stored() {
+        // Known SHA-256 of the empty input. If this string ever changes, every
+        // baseline and every cached AI answer in every project silently stops
+        // matching, so the encoding is part of the file format rather than an
+        // implementation detail.
+        let digest = Sha256::new().finalize();
+        assert_eq!(
+            hex(&digest),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+    }
+
+    #[test]
+    fn every_byte_is_two_lowercase_digits() {
+        assert_eq!(hex(&[0x00, 0x0f, 0xa0, 0xff]), "000fa0ff");
+        assert_eq!(hex(&[]), "");
     }
 }
 

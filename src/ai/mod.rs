@@ -373,13 +373,14 @@ fn content_fingerprint(inventory: &Inventory, files: &[String]) -> String {
         }
         hasher.update(b"\n");
     }
-    format!("{:x}", hasher.finalize())
+    crate::model::hex(&hasher.finalize())
 }
 
 fn cache_key(kind: &str, model: &str, payload: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(format!("{kind}|{model}|{payload}").as_bytes());
-    format!("{kind}-{:x}", hasher.finalize())[..40.min(kind.len() + 33)].to_string()
+    format!("{kind}-{}", crate::model::hex(&hasher.finalize()))[..40.min(kind.len() + 33)]
+        .to_string()
 }
 
 fn cache_read(options: &AiOptions, key: &str) -> Option<String> {
