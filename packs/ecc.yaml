@@ -1,0 +1,165 @@
+name: ecc
+title: "Internal Protocol Set (SEC / DEV / CRYPTO)"
+version: "1.0"
+description: >
+  The part of an internal information-security and development protocol that
+  can be enforced in code. This pack is an example of how to turn your own
+  protocol into a pack — copy it and replace the clause numbers with your own.
+
+controls:
+  # --- SEC-03 secrets ---
+  - id: SEC-03.3.1
+    title: "Secrets are not stored in code, configuration or version control"
+    severity: critical
+    detected_by:
+      rules: [DB-SEC-001, DB-SEC-002, DB-SEC-003, DB-SEC-004, DB-INF-003, DB-REPO-001, DB-REPO-003]
+      cwe: [798]
+  - id: SEC-03.7.1
+    title: "Secret detection is part of the CI pipeline"
+    severity: medium
+    detected_by:
+      rules: [DB-REPO-021]
+
+  # --- SEC-05 data classification ---
+  - id: SEC-05.3
+    title: "C3-class data never reaches logs and is stored encrypted"
+    severity: high
+    detected_by:
+      rules: [DB-DAT-001, DB-REPO-040, DB-PRV-002, AI-data]
+  - id: SEC-05.5
+    title: "Real personal data is not used in test environments"
+    severity: high
+    detected_by:
+      rules: [DB-REPO-078, AI-data]
+
+  # --- CRYPTO-01 ---
+  - id: CRYPTO-01.2.3
+    title: "Only AEAD cipher modes are used"
+    severity: high
+    detected_by:
+      rules: [DB-CRY-003]
+      cwe: [327]
+  - id: CRYPTO-01.2.8
+    title: "Certificate verification is never disabled"
+    severity: critical
+    detected_by:
+      rules: [DB-CRY-001]
+      cwe: [295]
+  - id: CRYPTO-01.3.1
+    title: "External traffic is encrypted with TLS 1.3"
+    severity: high
+    detected_by:
+      rules: [DB-INF-004]
+      cwe: [319]
+  - id: CRYPTO-01.4.1
+    title: "Passwords are stored with Argon2id"
+    severity: critical
+    detected_by:
+      rules: [DB-CRY-004, DB-REPO-032]
+      cwe: [916]
+  - id: CRYPTO-01.5
+    title: "Random values come from a cryptographic generator"
+    severity: high
+    detected_by:
+      rules: [DB-CRY-005, DB-CRY-006]
+      cwe: [338]
+  - id: CRYPTO-01.6.1
+    title: "C3 fields are protected with envelope encryption"
+    severity: high
+    detected_by:
+      rules: [DB-REPO-040, AI-crypto]
+
+  # --- DEV-01 development protokolu ---
+  - id: DEV-01.9
+    title: "Automated tests exist"
+    severity: high
+    detected_by:
+      rules: [DB-REPO-022, DB-REPO-023]
+
+  # --- DEV-02 code security ---
+  - id: DEV-02.4
+    title: "Authorisation is enforced server-side at object level"
+    severity: critical
+    detected_by:
+      rules: [AI-authz, DB-AUZ-001, DB-AUZ-002, DB-AUN-001]
+      cwe: [639, 862]
+  - id: DEV-02.5.5
+    title: "Database queries are parameterised"
+    severity: critical
+    detected_by:
+      rules: [DB-INJ-001]
+      cwe: [89]
+  - id: DEV-02.6
+    title: "Outbound requests have timeouts and a circuit breaker"
+    severity: medium
+    detected_by:
+      rules: [DB-CFG-004, AI-failure]
+  - id: DEV-02.8.3
+    title: "Security headers are set"
+    severity: medium
+    detected_by:
+      rules: [DB-REPO-030]
+  - id: DEV-02.8.4
+    title: "CORS is restricted with an allowlist"
+    severity: high
+    detected_by:
+      rules: [DB-CFG-001]
+      cwe: [942]
+  - id: DEV-02.9.1
+    title: "Errors are not silently swallowed"
+    severity: high
+    detected_by:
+      rules: [DB-DAT-003, AI-failure]
+      cwe: [390]
+  - id: DEV-02.10.1
+    title: "Public endpoints are rate limited"
+    severity: high
+    detected_by:
+      rules: [DB-REPO-031]
+  - id: DEV-02.12
+    title: "Dependencies are locked and free of known vulnerabilities"
+    severity: high
+    detected_by:
+      rules: [DB-DEP-VULN, DB-REPO-010, DB-REPO-011, DB-SUP-001]
+      cwe: [1395]
+  - id: DEV-02.13.2
+    title: "Sensitive data on mobile devices is kept in secure storage"
+    severity: high
+    detected_by:
+      rules: [DB-PRV-002]
+      cwe: [922]
+
+  # --- DEV-04 release ---
+  - id: DEV-04.4.4
+    title: "The mobile app has a remote kill switch"
+    severity: high
+    detected_by:
+      rules: [DB-REPO-050]
+    note: "A release that reached the store cannot be rolled back — this mechanism is the only substitute."
+  - id: DEV-04.6.2
+    title: "Schema changes follow expand-contract"
+    severity: high
+    detected_by:
+      rules: [DB-MIG-002, DB-MIG-004, AI-migration]
+  - id: DEV-04.6.4
+    title: "Migrations contain no unconditional deletes and no blocking DDL"
+    severity: critical
+    detected_by:
+      rules: [DB-MIG-001, DB-MIG-003]
+  - id: DEV-04.6.5
+    title: "Every migration has a rollback step"
+    severity: medium
+    detected_by:
+      rules: [DB-REPO-080, AI-migration]
+
+  # --- SEC-07 / SEC-09 ---
+  - id: SEC-07.3
+    title: "Backups are stored immutably"
+    severity: critical
+    detected_by:
+      rules: [DB-REPO-075]
+  - id: SEC-09.4
+    title: "Intellectual-property and confidentiality documents are signed"
+    severity: high
+    detected_by: {}
+    note: "A documentation check — a technical tool cannot assess it."

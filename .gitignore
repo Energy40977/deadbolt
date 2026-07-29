@@ -1,0 +1,20 @@
+# Build output
+/target/
+
+# deadbolt's own run artefacts
+/deadbolt-report/
+/deadbolt-portfolio/
+/.deadbolt-cache/
+/.deadbolt-baseline.json
+*.sarif
+
+# Environment files are never committed
+.env
+.env.*
+!.env.example
+
+# Editor and OS noise
+.DS_Store
+*.swp
+.idea/
+.vscode/

@@ -1,0 +1,113 @@
+name: cwe-top
+title: "CWE Top 25 — deadbolt Coverage"
+version: "2024"
+description: >
+  The part of the CWE Top 25 that this tool can detect. Weakness classes it
+  cannot detect stay `unknown`.
+
+controls:
+  - id: CWE-79
+    title: "Cross-site Scripting"
+    severity: high
+    detected_by: { cwe: [79], rules: [DB-INJ-005, AI-frontend] }
+  - id: CWE-89
+    title: "SQL Injection"
+    severity: critical
+    detected_by: { cwe: [89], rules: [DB-INJ-001] }
+  - id: CWE-78
+    title: "OS Command Injection"
+    severity: critical
+    detected_by: { cwe: [78], rules: [DB-INJ-002] }
+  - id: CWE-22
+    title: "Path Traversal"
+    severity: high
+    detected_by: { cwe: [22], rules: [DB-INJ-004] }
+  - id: CWE-352
+    title: "Cross-Site Request Forgery"
+    severity: high
+    detected_by:
+      rules: [DB-REPO-076]
+      cwe: [352]
+    note: "The presence of CSRF protection must be confirmed manually."
+  - id: CWE-434
+    title: "Unrestricted Upload of File with Dangerous Type"
+    severity: high
+    detected_by:
+      rules: [DB-REPO-071]
+      cwe: [434]
+  - id: CWE-862
+    title: "Missing Authorization"
+    severity: critical
+    detected_by: { cwe: [862, 306], rules: [DB-AUN-001, AI-authz] }
+  - id: CWE-863
+    title: "Incorrect Authorization"
+    severity: critical
+    detected_by: { cwe: [863, 639], rules: [AI-authz, DB-AUZ-002] }
+  - id: CWE-306
+    title: "Missing Authentication for Critical Function"
+    severity: critical
+    detected_by: { cwe: [306], rules: [DB-AUN-001] }
+  - id: CWE-502
+    title: "Deserialization of Untrusted Data"
+    severity: high
+    detected_by: { cwe: [502], rules: [DB-INJ-003] }
+  - id: CWE-798
+    title: "Use of Hard-coded Credentials"
+    severity: critical
+    detected_by: { cwe: [798], rules: [DB-SEC-001, DB-SEC-002, DB-SEC-003, DB-SEC-004, DB-INF-003, DB-REPO-001] }
+  - id: CWE-918
+    title: "Server-Side Request Forgery"
+    severity: high
+    detected_by: { cwe: [918], rules: [DB-INJ-006] }
+  - id: CWE-295
+    title: "Improper Certificate Validation"
+    severity: critical
+    detected_by: { cwe: [295], rules: [DB-CRY-001] }
+  - id: CWE-327
+    title: "Use of a Broken or Risky Cryptographic Algorithm"
+    severity: high
+    detected_by: { cwe: [327], rules: [DB-CRY-002, DB-CRY-003] }
+  - id: CWE-338
+    title: "Use of Cryptographically Weak PRNG"
+    severity: high
+    detected_by: { cwe: [338], rules: [DB-CRY-005] }
+  - id: CWE-916
+    title: "Use of Password Hash With Insufficient Computational Effort"
+    severity: critical
+    detected_by: { cwe: [916], rules: [DB-CRY-004, DB-REPO-032] }
+  - id: CWE-532
+    title: "Insertion of Sensitive Information into Log File"
+    severity: high
+    detected_by: { cwe: [532], rules: [DB-DAT-001, AI-data] }
+  - id: CWE-209
+    title: "Generation of Error Message Containing Sensitive Information"
+    severity: medium
+    detected_by: { cwe: [209], rules: [DB-DAT-002] }
+  - id: CWE-319
+    title: "Cleartext Transmission of Sensitive Information"
+    severity: high
+    detected_by: { cwe: [319], rules: [DB-INF-004] }
+  - id: CWE-1395
+    title: "Dependency on Vulnerable Third-Party Component"
+    severity: high
+    detected_by: { cwe: [1395], rules: [DB-DEP-VULN] }
+  - id: CWE-770
+    title: "Allocation of Resources Without Limits"
+    severity: medium
+    detected_by: { cwe: [770], rules: [DB-CFG-003, DB-REPO-031] }
+  - id: CWE-1004
+    title: "Sensitive Cookie Without HttpOnly Flag"
+    severity: medium
+    detected_by: { cwe: [1004], rules: [DB-AUN-002] }
+  - id: CWE-942
+    title: "Permissive Cross-domain Policy"
+    severity: high
+    detected_by: { cwe: [942], rules: [DB-CFG-001] }
+  - id: CWE-250
+    title: "Execution with Unnecessary Privileges"
+    severity: medium
+    detected_by: { cwe: [250], rules: [DB-INF-001, DB-REPO-052] }
+  - id: CWE-1357
+    title: "Reliance on Insufficiently Trustworthy Component"
+    severity: medium
+    detected_by: { cwe: [1357], rules: [DB-SUP-001, DB-DEP-INCIDENT] }

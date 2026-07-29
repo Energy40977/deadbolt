@@ -1,0 +1,26 @@
+# deadbolt auditing deadbolt.
+#
+# Two exclusions, both structural rather than convenient.
+
+[paths]
+# The rule catalogue and the skill files *contain* every pattern the engine hunts
+# for: a disabled TLS check, an ECB mode, a `pull_request_target` trigger. Scanning
+# them reports the tool's own vocabulary as the tool's own defects. Nothing here is
+# executable code — these are data files read by the engine.
+ignore = [
+  "src/scan/catalog.rs",
+  "skills/**",
+  "packs/**",
+]
+
+[deps]
+# `http` is the canonical crate of that name and a transitive dependency of hyper.
+# The typosquat heuristic measures edit distance to popular names, and a name this
+# short is close to several of them.
+allow = ["http"]
+
+[gates]
+fail_on = "high"
+
+[trend]
+record = true

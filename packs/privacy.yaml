@@ -1,0 +1,74 @@
+name: privacy
+title: "Personal Data Protection (GDPR-Aligned Minimum Plus PCI Elements)"
+version: "1.0"
+description: >
+  Not legal advice: technically verifiable controls for processing personal
+  data. A legal assessment is required separately.
+
+controls:
+  - id: PRIV-01
+    title: "Personal data is encrypted at field level"
+    severity: high
+    detected_by:
+      rules: [DB-REPO-040, AI-data]
+    note: "Disk encryption does not protect against a leaked database dump."
+  - id: PRIV-02
+    title: "Personal data never reaches logs or analytics"
+    severity: high
+    detected_by:
+      rules: [DB-DAT-001, AI-data]
+      cwe: [532]
+  - id: PRIV-03
+    title: "Third-party telemetry is documented and controlled"
+    severity: medium
+    detected_by:
+      rules: [DB-PRV-001, DB-DEP-PRIVACY]
+      cwe: [359]
+  - id: PRIV-04
+    title: "Dependency data collection has been researched"
+    severity: medium
+    detected_by:
+      rules: [DB-DEP-PRIVACY]
+  - id: PRIV-05
+    title: "Sensitive data is kept in secure storage on the client device"
+    severity: high
+    detected_by:
+      rules: [DB-PRV-002, AI-frontend]
+      cwe: [922]
+  - id: PRIV-06
+    title: "Payment card data is not stored (tokenisation is used)"
+    severity: critical
+    detected_by:
+      rules: [DB-REPO-077, AI-data]
+    note: "Storing card data expands PCI DSS scope dramatically."
+  - id: PRIV-07
+    title: "Real personal data is not used in test environments"
+    severity: high
+    detected_by:
+      rules: [DB-REPO-078, AI-data]
+  - id: PRIV-08
+    title: "A retention period is defined for personal data"
+    severity: medium
+    detected_by:
+      rules: [DB-REPO-072]
+  - id: PRIV-09
+    title: "A mechanism exists for access and deletion requests"
+    severity: medium
+    detected_by:
+      rules: [DB-REPO-073]
+  - id: PRIV-10
+    title: "Personal data travels over an encrypted channel"
+    severity: high
+    detected_by:
+      rules: [DB-INF-004, DB-CRY-001]
+      cwe: [319]
+  - id: PRIV-11
+    title: "Bulk export of personal data is written to an audit log"
+    severity: medium
+    detected_by:
+      rules: [DB-REPO-079, AI-data]
+  - id: PRIV-12
+    title: "Backups are encrypted"
+    severity: high
+    detected_by:
+      rules: [DB-REPO-074]

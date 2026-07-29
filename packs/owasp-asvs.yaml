@@ -1,0 +1,228 @@
+name: owasp-asvs
+title: "OWASP ASVS 4.0 — Controls deadbolt Can Verify"
+version: "4.0.3"
+description: >
+  The part of ASVS that this tool can assess automatically. Controls it cannot
+  verify are marked `unknown` — nothing passes silently.
+
+controls:
+  - id: V2.1.7
+    title: "Passwords are checked against a breached-password list"
+    severity: medium
+    detected_by:
+      rules: [DB-REPO-070]
+
+  - id: V2.4.1
+    title: "Passwords are stored with a memory-hard function"
+    severity: critical
+    detected_by:
+      rules: [DB-CRY-004, DB-REPO-032]
+      cwe: [916]
+
+  - id: V2.5.4
+    title: "No default credentials exist"
+    severity: high
+    detected_by:
+      rules: [DB-SEC-001, DB-INF-003]
+      cwe: [798]
+
+  - id: V2.10.4
+    title: "Secrets are not stored in source code"
+    severity: critical
+    detected_by:
+      rules: [DB-SEC-001, DB-SEC-002, DB-SEC-003, DB-SEC-004, DB-REPO-001, DB-REPO-003]
+      cwe: [798]
+
+  - id: V3.4.1
+    title: "Session cookies are set with the Secure attribute"
+    severity: high
+    detected_by:
+      rules: [DB-AUN-002]
+      cwe: [1004]
+
+  - id: V3.5.3
+    title: "Token signatures are verified and the algorithm is pinned"
+    severity: critical
+    detected_by:
+      rules: [DB-CRY-007]
+      cwe: [347]
+
+  - id: V4.1.1
+    title: "Authorisation is enforced server-side"
+    severity: critical
+    detected_by:
+      rules: [DB-AUZ-001, AI-authz]
+      cwe: [602]
+
+  - id: V4.1.3
+    title: "Least privilege: every function has an authorisation check"
+    severity: critical
+    detected_by:
+      rules: [DB-AUN-001, AI-authz]
+      cwe: [306]
+
+  - id: V4.2.1
+    title: "Object-level authorisation (IDOR protection)"
+    severity: critical
+    detected_by:
+      rules: [AI-authz, DB-AUZ-002]
+      cwe: [639]
+
+  - id: V5.3.3
+    title: "Output encoding is applied against XSS"
+    severity: high
+    detected_by:
+      rules: [DB-INJ-005]
+      cwe: [79]
+
+  - id: V5.3.4
+    title: "Database queries are parameterised"
+    severity: critical
+    detected_by:
+      rules: [DB-INJ-001]
+      cwe: [89]
+
+  - id: V5.3.8
+    title: "Operating-system commands are built safely"
+    severity: high
+    detected_by:
+      rules: [DB-INJ-002]
+      cwe: [78]
+
+  - id: V5.5.1
+    title: "Deserialisation of untrusted data is safe"
+    severity: high
+    detected_by:
+      rules: [DB-INJ-003]
+      cwe: [502]
+
+  - id: V6.2.1
+    title: "Cryptographic modules are used safely"
+    severity: high
+    detected_by:
+      rules: [DB-CRY-006, DB-CRY-008, AI-crypto]
+
+  - id: V6.2.2
+    title: "Deprecated cryptographic algorithms are not used"
+    severity: high
+    detected_by:
+      rules: [DB-CRY-002, DB-CRY-003]
+      cwe: [327]
+
+  - id: V6.3.1
+    title: "Random values come from a cryptographic generator"
+    severity: high
+    detected_by:
+      rules: [DB-CRY-005]
+      cwe: [338]
+
+  - id: V7.1.1
+    title: "Log entries do not contain credentials"
+    severity: high
+    detected_by:
+      rules: [DB-DAT-001, AI-data]
+      cwe: [532]
+
+  - id: V7.4.1
+    title: "Error messages do not disclose internal detail"
+    severity: medium
+    detected_by:
+      rules: [DB-DAT-002, AI-data]
+      cwe: [209]
+
+  - id: V7.4.3
+    title: "Errors are handled explicitly"
+    severity: high
+    detected_by:
+      rules: [DB-DAT-003, AI-failure]
+      cwe: [390]
+
+  - id: V8.2.2
+    title: "Sensitive data is not kept in unprotected client-side storage"
+    severity: high
+    detected_by:
+      rules: [DB-PRV-002, AI-frontend]
+      cwe: [922]
+
+  - id: V9.1.1
+    title: "All traffic travels over an encrypted channel"
+    severity: high
+    detected_by:
+      rules: [DB-INF-004]
+      cwe: [319]
+
+  - id: V9.2.1
+    title: "TLS certificates are verified"
+    severity: critical
+    detected_by:
+      rules: [DB-CRY-001]
+      cwe: [295]
+
+  - id: V12.3.1
+    title: "File paths built from user input are handled safely"
+    severity: high
+    detected_by:
+      rules: [DB-INJ-004]
+      cwe: [22]
+
+  - id: V12.6.1
+    title: "Server-side requests are restricted against SSRF"
+    severity: high
+    detected_by:
+      rules: [DB-INJ-006]
+      cwe: [918]
+
+  - id: V13.2.6
+    title: "Outbound requests have timeouts"
+    severity: low
+    detected_by:
+      rules: [DB-CFG-004, AI-failure]
+      cwe: [1088]
+
+  - id: V13.4.2
+    title: "Query results are bounded (pagination)"
+    severity: medium
+    detected_by:
+      rules: [DB-CFG-003, AI-api]
+      cwe: [770]
+
+  - id: V14.1.3
+    title: "Debug mode is disabled in production"
+    severity: high
+    detected_by:
+      rules: [DB-CFG-002]
+      cwe: [489]
+
+  - id: V14.1.6
+    title: "The application runs as an unprivileged user"
+    severity: medium
+    detected_by:
+      rules: [DB-INF-001, DB-REPO-052]
+      cwe: [250]
+
+  - id: V14.2.1
+    title: "Dependencies are current and free of known vulnerabilities"
+    severity: high
+    detected_by:
+      rules: [DB-DEP-VULN]
+      cwe: [1395]
+
+  - id: V14.2.4
+    title: "Third-party components are pinned to immutable identifiers"
+    severity: medium
+    detected_by:
+      rules: [DB-SUP-001, DB-REPO-010, DB-REPO-011]
+      cwe: [1357]
+
+  - id: V14.4.3
+    title: "Content-Security-Policy is applied"
+    severity: medium
+    detected_by:
+      rules: [DB-REPO-030]
+
+  - id: V14.5.3
+    title: "The CORS policy is restrictive"
+    severity: high
+    detected_by:
+      rules: [DB-CFG-001]
+      cwe: [942]

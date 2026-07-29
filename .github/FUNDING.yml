@@ -1,0 +1,17 @@
+# The Sponsor button on this repository.
+#
+# GitHub Sponsors pays out through Stripe Connect, which does not operate in
+# every country. Where it is unavailable, `custom` takes any URL — a Payoneer
+# link, a crypto address page, or an invoice request form — and the button works
+# the same way.
+#
+# Uncomment and fill in the channels that actually accept payment for you, then
+# delete the rest. Empty keys make the button disappear.
+
+# github: [Energy40977]
+# patreon: your-handle
+# buy_me_a_coffee: your-handle
+# ko_fi: your-handle
+
+custom:
+  - https://github.com/Energy40977/deadbolt#support

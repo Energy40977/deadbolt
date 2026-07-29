@@ -1,0 +1,63 @@
+[package]
+name = "deadbolt"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Deep, language-agnostic security and compliance audit for any codebase — static analysis, live dependency research, and AI-assisted review."
+authors = ["deadbolt contributors"]
+license = "Apache-2.0"
+repository = "https://github.com/deadbolt-audit/deadbolt"
+homepage = "https://github.com/deadbolt-audit/deadbolt"
+documentation = "https://docs.rs/deadbolt"
+readme = "README.md"
+keywords = ["security", "audit", "sast", "supply-chain", "compliance"]
+categories = ["command-line-utilities", "development-tools"]
+exclude = ["/.github", "/docs", "/tests/fixtures"]
+
+[[bin]]
+name = "deadbolt"
+path = "src/main.rs"
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive", "env", "wrap_help"] }
+
+# serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+toml = "0.8"
+
+# scanning
+regex = "1"
+ignore = "0.4"
+globset = "0.4"
+
+# async + network research
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "time", "sync", "io-util"] }
+# Native (OS) trust store, not bundled Mozilla roots. Corporate networks
+# frequently terminate TLS with their own CA (e.g. Palo Alto decryption);
+# bundled roots reject those chains while every other tool on the machine
+# works. Minimal containers without a store can set SSL_CERT_FILE.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots", "gzip", "charset", "http2"] }
+futures = "0.3"
+
+# misc
+anyhow = "1"
+semver = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+sha2 = "0.10"
+owo-colors = "4"
+indicatif = "0.17"
+textwrap = "0.16"
+dialoguer = { version = "0.12.0", default-features = false }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "abort"
