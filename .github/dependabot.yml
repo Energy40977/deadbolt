@@ -1,0 +1,27 @@
+version: 2
+
+updates:
+  # Cargo. Grouped so one pull request carries a coherent upgrade rather than a
+  # queue of single-crate bumps nobody reviews.
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Actions are pinned by tag in the workflow; this is what keeps those tags from
+  # going stale, and a stale action is a supply-chain risk this tool reports on.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "chore(ci)"
