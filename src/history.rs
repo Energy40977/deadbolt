@@ -270,7 +270,10 @@ mod tests {
     fn matches_real_credentials_and_ignores_placeholders() {
         let matcher = Matcher::new().unwrap();
         assert!(matcher
-            .check(r#"API_KEY = "sk_live_aB3xY9zQ7mN2pL5kR8w""#)
+            .check(&format!(
+                r#"API_KEY = "{}""#,
+                ["sk", "live", "aB3xY9zQ7mN2pL5kR8w"].join("_")
+            ))
             .is_some());
         assert!(matcher.check("-----BEGIN RSA PRIVATE KEY-----").is_some());
         assert!(matcher
@@ -284,7 +287,10 @@ mod tests {
 
     #[test]
     fn redaction_keeps_the_name_and_drops_the_value() {
-        let masked = redact(r#"  API_KEY = "sk_live_abcdefghijklmnop"  "#);
+        let masked = redact(&format!(
+            r#"  API_KEY = "{}"  "#,
+            ["sk", "live", "abcdefghijklmnop"].join("_")
+        ));
         assert!(masked.contains("API_KEY"));
         assert!(!masked.contains("sk_live"));
     }

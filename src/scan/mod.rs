@@ -858,7 +858,13 @@ message = f"DELETE requested by {user}"
 
     #[test]
     fn real_credentials_are_secrets() {
-        let body = r#"API_KEY = "sk_live_aB3xY9zQ7mN2pL5kR8wT1vC4""#;
+        // Assembled at runtime on purpose. A literal in provider format is a real
+        // credential as far as any scanner is concerned — GitHub's flagged this exact
+        // line as a live Stripe key — and shipping one in a repository that teaches
+        // people not to is indefensible. The engine still receives the same string.
+        let token = ["sk", "live", "aB3xY9zQ7mN2pL5kR8wT1vC4"].join("_");
+        let body = format!(r#"API_KEY = "{token}""#);
+        let body = body.as_str();
         let hits = rules_hit("app/config.py", body);
         assert!(
             hits.contains(&"DB-SEC-001".to_string()) || hits.contains(&"DB-SEC-003".to_string())
