@@ -1,0 +1,33 @@
+{
+  "note": "deadbolt baseline — accepted existing findings. New findings still block. This file is expected to SHRINK, not grow.",
+  "generated_at": "2026-07-29T14:13:52.230401+00:00",
+  "tool_version": "0.1.0",
+  "fingerprints": [
+    "191c4f1713d4214d",
+    "3962793095f3a9f1",
+    "444ee1444d8b159e"
+  ],
+  "entries": [
+    {
+      "fingerprint": "444ee1444d8b159e",
+      "rule": "DB-HIST-001",
+      "severity": "critical",
+      "file": "src/history.rs",
+      "title": "Secret In History: src/history.rs"
+    },
+    {
+      "fingerprint": "191c4f1713d4214d",
+      "rule": "DB-HIST-001",
+      "severity": "critical",
+      "file": "src/history.rs",
+      "title": "Secret In History: src/history.rs"
+    },
+    {
+      "fingerprint": "3962793095f3a9f1",
+      "rule": "DB-HIST-001",
+      "severity": "critical",
+      "file": "src/scan/mod.rs",
+      "title": "Secret In History: src/scan/mod.rs"
+    }
+  ]
+}

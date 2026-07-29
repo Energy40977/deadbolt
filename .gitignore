@@ -1,11 +1,15 @@
 # Build output
 /target/
 
-# deadbolt's own run artefacts
+# deadbolt's own run artefacts.
+#
+# The baseline and the history file are deliberately absent from this list: both are
+# meant to be committed. A baseline that is ignored cannot accept anything in CI,
+# which is exactly how this repository's own pipeline ended up blocking on findings
+# that had already been accepted locally.
 /deadbolt-report/
 /deadbolt-portfolio/
 /.deadbolt-cache/
-/.deadbolt-baseline.json
 *.sarif
 
 # Environment files are never committed
