@@ -386,11 +386,29 @@ mod tests {
         let dir = std::env::temp_dir().join("deadbolt-portfolio-test");
         std::fs::create_dir_all(&dir).unwrap();
         let list = dir.join("repos.txt");
-        std::fs::write(&list, "# comment\n./one\n\n/abs/two   # trailing\n").unwrap();
+
+        // What counts as absolute is platform-specific: `/abs/two` is rooted but
+        // not absolute on Windows, where a path needs a drive. Build one from the
+        // platform itself so the test states the rule rather than one OS's spelling
+        // of it.
+        let absolute = std::env::temp_dir().join("deadbolt-portfolio-absolute");
+        assert!(
+            absolute.is_absolute(),
+            "temp_dir is absolute on every platform"
+        );
+        std::fs::write(
+            &list,
+            format!("# comment\n./one\n\n{}   # trailing\n", absolute.display()),
+        )
+        .unwrap();
 
         let paths = read_list(&list).unwrap();
         assert_eq!(paths.len(), 2);
-        assert!(paths[0].ends_with("one"));
-        assert_eq!(paths[1], PathBuf::from("/abs/two"));
+        assert!(
+            paths[0].ends_with("one") && paths[0].is_absolute(),
+            "a relative entry resolves against the list file's directory: {:?}",
+            paths[0]
+        );
+        assert_eq!(paths[1], absolute, "an absolute entry is taken as written");
     }
 }
