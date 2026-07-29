@@ -397,7 +397,7 @@ mod tests {
 
     #[test]
     fn chains_are_excluded_from_the_score() {
-        let chain = correlate(&vec![
+        let chain = correlate(&[
             finding(
                 "DB-AUZ-002",
                 Category::Authorization,

@@ -54,16 +54,32 @@ jobs:
 
       # Offline and without the AI layer: this job must be deterministic and must
       # not depend on a network service or on model availability.
+      #
+      # Exit codes are handled explicitly, which is the same advice this tool gives
+      # its own users. Offline is deliberate here, so code 3 (a phase did not run)
+      # is expected and must not fail the build; 1 and 2 must.
       - name: Audit itself
         run: |
+          set +e
           ./target/release/deadbolt audit . \
             --no-ai --offline \
             --format terminal,sarif \
             --out ./audit \
             --fail-on critical
+          code=$?
+          set -e
+          case "$code" in
+            0) echo "clean" ;;
+            3) echo "::warning::deadbolt ran degraded (offline by design): dependency and AI phases were skipped" ;;
+            *) echo "::error::deadbolt exited $code"; exit "$code" ;;
+          esac
 
+      # Code scanning is unavailable on a private repository without Advanced
+      # Security, so a missing entitlement must not fail the audit that produced
+      # the file. The artefact below is the fallback.
       - name: Upload SARIF
         if: always()
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ./audit/deadbolt.sarif

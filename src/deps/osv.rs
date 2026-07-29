@@ -128,7 +128,7 @@ pub async fn query_batch(packages: &[Package]) -> Result<HashMap<String, Vec<Vul
             .json()
             .await
             .context("Could Not Read The OSV Response")?;
-        for (package, result) in chunk.iter().zip(parsed.results.into_iter()) {
+        for (package, result) in chunk.iter().zip(parsed.results) {
             if result.vulns.is_empty() {
                 continue;
             }

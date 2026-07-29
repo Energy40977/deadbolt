@@ -658,7 +658,7 @@ Reported With Their Original Confidence",
         },
     );
 
-    let results = stream::iter(candidates.into_iter())
+    let results = stream::iter(candidates)
         .map(|finding| async move {
             let evidence = finding.evidence.first();
             let prompt = prompt::build_refute_prompt(

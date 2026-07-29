@@ -145,7 +145,7 @@ pub fn shared_rules(members: &[Member]) -> Vec<(String, (Vec<String>, String))> 
         .into_iter()
         .filter(|(_, (repos, _))| repos.len() > 1)
         .collect();
-    shared.sort_by(|a, b| b.1 .0.len().cmp(&a.1 .0.len()));
+    shared.sort_by_key(|entry| std::cmp::Reverse(entry.1 .0.len()));
     shared
 }
 
