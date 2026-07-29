@@ -128,7 +128,7 @@ impl Engine {
             }
             hasher.update(b"\n");
         }
-        format!("{:x}", hasher.finalize())[..16].to_string()
+        crate::model::hex(&hasher.finalize())[..16].to_string()
     }
 
     pub fn user_rule_count(&self) -> usize {
