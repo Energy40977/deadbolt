@@ -10,6 +10,13 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+# Least privilege at the workflow level. Without this block a job receives the
+# default token scope, which on a public repository is read-only but on a private
+# one is write — a compromised action would then be able to push. The one job that
+# needs more says so itself.
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ${{ matrix.os }}
@@ -41,6 +48,10 @@ jobs:
     # deadbolt has to survive its own rules. A scanner that cannot pass itself is
     # not a scanner anybody should adopt.
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Only this job writes, and only to code scanning, for the SARIF upload.
+      security-events: write
     steps:
       - uses: actions/checkout@v4
         with:
