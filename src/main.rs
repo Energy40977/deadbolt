@@ -820,43 +820,6 @@ Notes, Not In `.deadbolt-baseline.json`.",
         }
     }
 
-    let mut controls = Vec::new();
-    let mut pack_summaries = Vec::new();
-    let mut packs_run = Vec::new();
-
-    if options.mode == "audit" {
-        let configured = config::pick_list(&options.packs, &options.settings.report.packs);
-        let requested = if configured.is_empty() {
-            compliance::built_in_names()
-                .iter()
-                .map(|name| name.to_string())
-                .collect()
-        } else {
-            configured
-        };
-
-        let coverage =
-            compliance::Coverage::new(&scan::all_rule_ids(), &lenses_run, !packages.is_empty());
-
-        for name in &requested {
-            let loaded = if name.ends_with(".yaml") || name.ends_with(".yml") {
-                compliance::load_file(Path::new(name))
-            } else {
-                compliance::load_built_in(name)
-            };
-            match loaded {
-                Ok(pack) => {
-                    let results = compliance::evaluate(&pack, &findings, &coverage);
-                    pack_summaries.push(compliance::summarize(&pack, &results));
-                    packs_run.push(pack.name.clone());
-                    controls.extend(results);
-                }
-                Err(error) => warnings.push(format!("pack '{name}': {error:#}")),
-            }
-        }
-        findings.extend(compliance::to_findings(&controls));
-    }
-
     // Reachability weighting runs before correlation, so a chain inherits the
     // calibrated severities rather than the raw ones.
     if options.settings.reach.enabled.unwrap_or(true) {
@@ -880,41 +843,6 @@ Notes, Not In `.deadbolt-baseline.json`.",
                 if chains.len() == 1 { "" } else { "s" }
             ));
             findings.extend(chains);
-        }
-    }
-
-    {
-        if let Some(limit) = options.settings.gates.max_unknown_controls {
-            let unknown: usize = pack_summaries.iter().map(|pack| pack.unknown).sum();
-            if unknown > limit {
-                findings.push(
-                    model::Finding::builder(
-                        "DB-GATE-004",
-                        model::Category::Compliance,
-                        model::Severity::High,
-                    )
-                    .title(format!(
-                        "Unassessable Control Count Exceeds The Limit: {unknown} > {limit}"
-                    ))
-                    .description(
-                        "An `unknown` Status Means The Control Could Not Be Evaluated — \
-It Does Not Mean It Passed.",
-                    )
-                    .impact(
-                        "The Compliance Report Looks Good Only Because Nothing Was Checked: \
-No Violations Because No Evaluation. That Gap Surfaces During An Audit Or Customer Review.",
-                    )
-                    .remediation(
-                        "Either Raise Coverage (Run The AI Lenses, Add Matching Rules), \
-Or Raise The Limit Deliberately And Write Down Why.",
-                    )
-                    .origin(model::Origin::Compliance)
-                    .confidence(model::Confidence::Confirmed)
-                    .evidence(model::Evidence::new("<compliance>", None, String::new()))
-                    .policy("SEC-00, b.5.5")
-                    .build(),
-                );
-            }
         }
     }
 
@@ -989,6 +917,84 @@ Or Raise The Limit Deliberately And Write Down Why.",
             .then(a.confidence.cmp(&b.confidence))
             .then(a.primary_location().cmp(&b.primary_location()))
     });
+
+    // Compliance is evaluated after the baseline filter on purpose. Evaluated before
+    // it, a control violated only by an accepted finding stayed violated and kept
+    // blocking, so the compliance section contradicted the findings list in the same
+    // report. Accepted risk belongs in the baseline file, which is committed and
+    // reviewable; a control should describe the state the reader is being asked to
+    // act on.
+    let mut controls = Vec::new();
+    let mut pack_summaries = Vec::new();
+    let mut packs_run = Vec::new();
+
+    if options.mode == "audit" {
+        let configured = config::pick_list(&options.packs, &options.settings.report.packs);
+        let requested = if configured.is_empty() {
+            compliance::built_in_names()
+                .iter()
+                .map(|name| name.to_string())
+                .collect()
+        } else {
+            configured
+        };
+
+        let coverage =
+            compliance::Coverage::new(&scan::all_rule_ids(), &lenses_run, !packages.is_empty());
+
+        for name in &requested {
+            let loaded = if name.ends_with(".yaml") || name.ends_with(".yml") {
+                compliance::load_file(Path::new(name))
+            } else {
+                compliance::load_built_in(name)
+            };
+            match loaded {
+                Ok(pack) => {
+                    let results = compliance::evaluate(&pack, &findings, &coverage);
+                    pack_summaries.push(compliance::summarize(&pack, &results));
+                    packs_run.push(pack.name.clone());
+                    controls.extend(results);
+                }
+                Err(error) => warnings.push(format!("pack '{name}': {error:#}")),
+            }
+        }
+        findings.extend(compliance::to_findings(&controls));
+
+        {
+            if let Some(limit) = options.settings.gates.max_unknown_controls {
+                let unknown: usize = pack_summaries.iter().map(|pack| pack.unknown).sum();
+                if unknown > limit {
+                    findings.push(
+                        model::Finding::builder(
+                            "DB-GATE-004",
+                            model::Category::Compliance,
+                            model::Severity::High,
+                        )
+                        .title(format!(
+                            "Unassessable Control Count Exceeds The Limit: {unknown} > {limit}"
+                        ))
+                        .description(
+                            "An `unknown` Status Means The Control Could Not Be Evaluated — \
+It Does Not Mean It Passed.",
+                        )
+                        .impact(
+                            "The Compliance Report Looks Good Only Because Nothing Was Checked: \
+No Violations Because No Evaluation. That Gap Surfaces During An Audit Or Customer Review.",
+                        )
+                        .remediation(
+                            "Either Raise Coverage (Run The AI Lenses, Add Matching Rules), \
+Or Raise The Limit Deliberately And Write Down Why.",
+                        )
+                        .origin(model::Origin::Compliance)
+                        .confidence(model::Confidence::Confirmed)
+                        .evidence(model::Evidence::new("<compliance>", None, String::new()))
+                        .policy("SEC-00, b.5.5")
+                        .build(),
+                    );
+                }
+            }
+        }
+    }
 
     let mut audit = AuditReport {
         meta: ReportMeta {
@@ -1606,7 +1612,28 @@ async fn baseline_command(args: &cli::BaselineArgs, ctx: BaselineContext) -> Res
     // The baseline has to hold what the gate will see. Reachability and correlation
     // run after the rule engine in a normal run, so building the baseline from raw
     // scan output left every attack chain outside it: `baseline --write` followed by
-    // `scan` still blocked, on findings the user had just accepted.
+    // `scan` still blocked, on findings the user had just accepted. The history scan
+    // is the same story — it is a separate producer, and a secret that only exists in
+    // past commits could never be accepted.
+    if settings.history.enabled.unwrap_or(true) && gitdiff::is_repository(&inventory.root) {
+        let history_options = history::Options {
+            max_commits: settings.history.max_commits.unwrap_or(1500),
+            ..Default::default()
+        };
+        match history::scan(&inventory.root, &history_options) {
+            Ok((history_findings, history_warnings)) => {
+                if verbose {
+                    eprintln!("   history-only secrets: {}", history_findings.len());
+                }
+                findings.extend(history_findings);
+                for warning in history_warnings {
+                    eprintln!("   ⚠ {warning}");
+                }
+            }
+            Err(error) => eprintln!("   ⚠ History Scan Failed: {error:#}"),
+        }
+    }
+
     if settings.reach.enabled.unwrap_or(true) {
         reach::calibrate(&inventory, &mut findings);
     }
