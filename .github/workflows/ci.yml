@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Lets a run be started from the Actions tab without an empty commit.
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
