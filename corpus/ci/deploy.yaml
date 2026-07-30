@@ -1,0 +1,14 @@
+name: deploy
+
+on:
+  # deadbolt-expect DB-CI-002:critical
+  pull_request_target:
+
+jobs:
+  ship:
+    runs-on: ubuntu-latest
+    steps:
+      # deadbolt-expect DB-SUP-001:medium
+      - uses: actions/checkout@v4
+      # deadbolt-expect DB-CI-001:high
+      - run: echo "$DEPLOY_TOKEN" | docker login -u ci --password-stdin
