@@ -1,0 +1,9 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      # DB-SEC-001 misses this too: `\bpassword` cannot match inside POSTGRES_PASSWORD.
+      # Only the infrastructure rule, which lists the literal name, reports it.
+      # deadbolt-gap DB-SEC-001
+      # deadbolt-expect DB-INF-003:high
+      POSTGRES_PASSWORD: "Qw8vNmPrTz41Ks"

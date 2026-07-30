@@ -7,11 +7,15 @@
 # for: a disabled TLS check, an ECB mode, a `pull_request_target` trigger. Scanning
 # them reports the tool's own vocabulary as the tool's own defects. Nothing here is
 # executable code — these are data files read by the engine.
+# The corpus is deliberately vulnerable: every file in it is a planted defect the
+# engine must keep finding (tests/corpus.rs asserts that). Reporting them here would
+# make the self-audit permanently red for defects that are the point of the tree.
 ignore = [
   "src/scan/catalog.rs",
   "src/ai/markers.rs",
   "skills/**",
   "packs/**",
+  "corpus/**",
 ]
 
 [deps]

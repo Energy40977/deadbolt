@@ -1,0 +1,9 @@
+<plist version="1.0">
+<dict>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <!-- deadbolt-expect DB-MOB-001:high -->
+    <key>NSAllowsArbitraryLoads</key><true/>
+  </dict>
+</dict>
+</plist>

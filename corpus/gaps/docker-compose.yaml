@@ -1,0 +1,11 @@
+# Known miss, pinned on purpose: DB-INF-002 matches the bind address only when it
+# shares a line with the `ports:` key or a `-p` flag. The list form below is the
+# commoner shape in a real compose file and is not reported today. If the pattern
+# is widened, this assertion fails and the annotation gets removed — that is the
+# point: a documented gap that cannot be forgotten.
+services:
+  db:
+    image: postgres:16
+    ports:
+      # deadbolt-gap DB-INF-002
+      - "0.0.0.0:5432:5432"

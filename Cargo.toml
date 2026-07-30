@@ -12,7 +12,7 @@ documentation = "https://docs.rs/deadbolt"
 readme = "README.md"
 keywords = ["security", "audit", "sast", "supply-chain", "compliance"]
 categories = ["command-line-utilities", "development-tools"]
-exclude = ["/.github", "/docs", "/tests/fixtures"]
+exclude = ["/.github", "/docs", "/tests/fixtures", "/corpus"]
 
 [[bin]]
 name = "deadbolt"

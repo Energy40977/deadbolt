@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- deadbolt-expect DB-MOB-001:high -->
+  <application android:usesCleartextTraffic="true">
+    <!-- deadbolt-expect DB-MOB-002:high -->
+    <meta-data android:debuggable="true" />
+    <!-- deadbolt-expect DB-MOB-002:high -->
+    <meta-data android:allowBackup="true" />
+    <!-- deadbolt-expect DB-MOB-004:medium -->
+    <receiver android:name=".SettlementReceiver" android:exported="true" />
+  </application>
+</manifest>
