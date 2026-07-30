@@ -656,8 +656,14 @@ Manifests and lockfiles parsed:
 | Pub | `pubspec.yaml` | `pubspec.lock` |
 | Maven | `pom.xml` | — |
 
-Lockfiles are preferred where present: they carry the resolved transitive graph,
-which is where real supply-chain compromise lives.
+Lockfiles take precedence where present: they carry the resolved transitive graph,
+which is where real supply-chain compromise lives. A manifest states a *requirement*
+rather than a version — `regex = "1"` against a resolved `1.13.1` — so a manifest
+entry is dropped once the lockfile has resolved that package. Querying a requirement
+string against an advisory database returns every advisory ever filed against the
+line, including ones fixed years earlier, which is a critical finding about a
+dependency that does not have it. Directness is the one fact only the manifest knows,
+so it carries over to the resolved entry.
 
 A design rule worth stating: **absence of data never becomes a finding.** A package whose metadata was not fetched is not reported as "unknown licence".
 

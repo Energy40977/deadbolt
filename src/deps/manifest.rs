@@ -46,7 +46,67 @@ pub fn collect(inventory: &Inventory) -> Vec<Package> {
         }
     }
 
-    packages.into_values().collect()
+    resolve_precedence(packages.into_values().collect())
+}
+
+/// Files that carry resolved versions rather than version requirements.
+fn is_lockfile(name: &str) -> bool {
+    let base = name.rsplit('/').next().unwrap_or(name);
+    matches!(
+        base,
+        "package-lock.json"
+            | "yarn.lock"
+            | "pnpm-lock.yaml"
+            | "Cargo.lock"
+            | "poetry.lock"
+            | "uv.lock"
+            | "go.sum"
+            | "composer.lock"
+            | "Gemfile.lock"
+            | "pubspec.lock"
+    )
+}
+
+/// Drops manifest entries for any package the lockfile already resolved.
+///
+/// A manifest states a *requirement*, not a version: `regex = "1"` in Cargo.toml
+/// against `regex 1.13.1` in Cargo.lock. Both used to survive as separate packages,
+/// so the requirement string went to the vulnerability database as though it were a
+/// version — and OSV answered with every advisory ever filed against the 1.x line,
+/// including one fixed in 1.5.5. That reported a critical vulnerability in a
+/// dependency that does not have it, which is the most damaging thing a security
+/// tool can do.
+///
+/// Directness is the one fact only the manifest knows, so it transfers to the
+/// resolved entries before the manifest ones are dropped.
+fn resolve_precedence(packages: Vec<Package>) -> Vec<Package> {
+    use std::collections::HashSet;
+
+    let locked: HashSet<(String, String)> = packages
+        .iter()
+        .filter(|package| is_lockfile(&package.manifest))
+        .map(|package| (package.ecosystem.clone(), package.name.clone()))
+        .collect();
+
+    let declared_direct: HashSet<(String, String)> = packages
+        .iter()
+        .filter(|package| !is_lockfile(&package.manifest) && package.direct)
+        .map(|package| (package.ecosystem.clone(), package.name.clone()))
+        .collect();
+
+    packages
+        .into_iter()
+        .filter(|package| {
+            is_lockfile(&package.manifest)
+                || !locked.contains(&(package.ecosystem.clone(), package.name.clone()))
+        })
+        .map(|mut package| {
+            if declared_direct.contains(&(package.ecosystem.clone(), package.name.clone())) {
+                package.direct = true;
+            }
+            package
+        })
+        .collect()
 }
 
 fn clean_version(raw: &str) -> String {
@@ -746,5 +806,52 @@ version = "4.2.11"
         assert!(make("", "1.0.0", "npm", true, "package.json").is_none());
         assert!(make("pkg", "", "npm", true, "package.json").is_none());
         assert!(make("pkg", "^1.2.3", "npm", true, "package.json").is_some());
+    }
+}
+
+#[cfg(test)]
+mod precedence_tests {
+    use super::*;
+
+    fn package(name: &str, version: &str, manifest: &str, direct: bool) -> Package {
+        Package {
+            name: name.to_string(),
+            version: version.to_string(),
+            ecosystem: "crates.io".to_string(),
+            direct,
+            manifest: manifest.to_string(),
+        }
+    }
+
+    #[test]
+    fn a_requirement_never_survives_next_to_a_resolved_version() {
+        let resolved = resolve_precedence(vec![
+            package("regex", "1", "Cargo.toml", true),
+            package("regex", "1.13.1", "Cargo.lock", false),
+        ]);
+        assert_eq!(resolved.len(), 1, "the requirement string is dropped");
+        assert_eq!(resolved[0].version, "1.13.1");
+        assert!(
+            resolved[0].direct,
+            "directness is only stated in the manifest, so it has to carry over"
+        );
+    }
+
+    #[test]
+    fn every_resolved_version_of_a_name_is_kept() {
+        let resolved = resolve_precedence(vec![
+            package("getrandom", "0.2.17", "Cargo.lock", false),
+            package("getrandom", "0.4.3", "Cargo.lock", false),
+        ]);
+        assert_eq!(resolved.len(), 2, "two versions really are in the graph");
+    }
+
+    #[test]
+    fn a_manifest_only_dependency_is_still_reported() {
+        // Maven has no lockfile, so dropping manifest entries wholesale would make
+        // the ecosystem invisible.
+        let resolved = resolve_precedence(vec![package("junit", "4.13.2", "pom.xml", true)]);
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].version, "4.13.2");
     }
 }
