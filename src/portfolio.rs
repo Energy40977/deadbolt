@@ -151,7 +151,7 @@ pub fn shared_rules(members: &[Member]) -> Vec<(String, (Vec<String>, String))> 
 
 pub fn render_markdown(members: &[Member], generated_at: &str) -> String {
     let mut out = String::new();
-    out.push_str("# Portfel Auditi\n\n");
+    out.push_str("# Portfolio Audit\n\n");
     out.push_str(&format!(
         "| | |\n|---|---|\n| Projects | {} |\n| Date | {} |\n\n",
         members.len(),
@@ -369,7 +369,7 @@ mod tests {
         let markdown = render_markdown(&members, "now");
         assert!(markdown.contains("`a`"));
         assert!(markdown.contains("`b`"));
-        assert!(markdown.contains("Portfel Auditi"));
+        assert!(markdown.contains("Portfolio Audit"));
     }
 
     #[test]

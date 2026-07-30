@@ -1,3 +1,4 @@
+mod markers;
 pub mod prompt;
 
 use std::collections::HashSet;
@@ -108,6 +109,8 @@ pub enum Event {
         findings: usize,
         cost_usd: f64,
         cached: bool,
+        tokens: u64,
+        turns: u32,
     },
     LensFailed {
         name: &'static str,
@@ -127,6 +130,10 @@ pub type EventSink = Arc<dyn Fn(Event) + Send + Sync>;
 
 /// Turn allowance for the recon pass: it reads widely but answers once.
 const RECON_TURNS: u32 = 60;
+/// Marker regions quoted into a lens prompt.
+///
+/// Enough to work from, bounded so the prompt cannot itself become the cost.
+const EXCERPT_BUDGET: usize = 60;
 /// Below this file count the lenses can discover the layout themselves, and a
 /// recon pass would cost more than it saves.
 const RECON_MIN_FILES: usize = 40;
@@ -136,7 +143,7 @@ const REFUTERS: usize = 2;
 /// Verification runs on the severe findings only: a low-severity claim is not
 /// worth two extra calls, and it never blocks a pipeline anyway.
 const VERIFY_MAX: usize = 60;
-const REFUTE_TURNS: u32 = 25;
+const REFUTE_TURNS: u32 = 12;
 
 pub struct AiOptions {
     pub model: String,
@@ -153,6 +160,9 @@ pub struct AiOptions {
     pub events: Option<EventSink>,
     /// Adversarial verification of severe AI findings.
     pub verify: bool,
+    /// Verify findings at this severity or worse. Defaults to the gate threshold, so
+    /// the spend follows what the run would actually block on.
+    pub verify_above: Severity,
 }
 
 impl AiOptions {
@@ -161,7 +171,7 @@ impl AiOptions {
             model: DEFAULT_MODEL.to_string(),
             concurrency: 8,
             timeout: Duration::from_secs(600),
-            max_turns: 45,
+            max_turns: 22,
             budget_usd: None,
             cache_dir: root.join(".deadbolt-cache"),
             lenses: Vec::new(),
@@ -170,6 +180,7 @@ impl AiOptions {
             verbose: false,
             events: None,
             verify: true,
+            verify_above: Severity::High,
         }
     }
 }
@@ -202,11 +213,44 @@ struct Envelope {
     total_cost_usd: f64,
     #[serde(default)]
     errors: Vec<String>,
+    #[serde(default)]
+    num_turns: u32,
+    #[serde(default)]
+    usage: Usage,
+}
+
+/// Token accounting from the CLI envelope.
+///
+/// Cost was the only number being read, which made it impossible to tell whether a
+/// subagent was expensive because of the prompt or because of its own reading. The
+/// prompt is about eleven thousand tokens; the loop is what costs money, and that
+/// only becomes visible once these are recorded.
+#[derive(Debug, Default, Clone, Copy, Deserialize)]
+struct Usage {
+    #[serde(default)]
+    input_tokens: u64,
+    #[serde(default)]
+    output_tokens: u64,
+    #[serde(default)]
+    cache_read_input_tokens: u64,
+    #[serde(default)]
+    cache_creation_input_tokens: u64,
+}
+
+impl Usage {
+    fn total(&self) -> u64 {
+        self.input_tokens
+            + self.output_tokens
+            + self.cache_read_input_tokens
+            + self.cache_creation_input_tokens
+    }
 }
 
 struct Invocation {
     text: String,
     cost_usd: f64,
+    usage: Usage,
+    turns: u32,
 }
 
 /// Marker returned by a lens that never ran because the budget was already
@@ -301,6 +345,8 @@ async fn invoke(
         Some(envelope) if !envelope.is_error => Ok(Invocation {
             text: envelope.result,
             cost_usd: envelope.total_cost_usd,
+            usage: envelope.usage,
+            turns: envelope.num_turns,
         }),
         Some(envelope) => {
             let detail = envelope
@@ -316,6 +362,8 @@ async fn invoke(
         None if output.status.success() && !stdout.trim().is_empty() => Ok(Invocation {
             text: stdout.into_owned(),
             cost_usd: 0.0,
+            usage: Usage::default(),
+            turns: 0,
         }),
         None => {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -447,6 +495,109 @@ fn load_skill(root: &Path, lens: &Lens) -> (String, bool) {
         Ok(body) if !body.trim().is_empty() => (body, true),
         _ => (lens.skill.to_string(), false),
     }
+}
+
+/// Lines in this slice that the lens actually cares about, with a little context.
+///
+/// The prompt used to name files and leave the agent to read them. Reading is what
+/// costs: every file pulled into context is re-sent on every following turn, so a
+/// forty-turn agent pays for the same file dozens of times. Handing it the matching
+/// lines up front turns most of that reading into verification of something it can
+/// already see.
+fn evidence_excerpts(
+    inventory: &Inventory,
+    lens: &Lens,
+    files: &[String],
+    budget: usize,
+) -> (String, usize) {
+    const CONTEXT: usize = 3;
+    let mut out = String::new();
+    let mut shown = 0usize;
+
+    for entry in files {
+        if shown >= budget {
+            break;
+        }
+        let path = entry.split(" (").next().unwrap_or(entry);
+        let Some(file) = inventory
+            .files
+            .iter()
+            .find(|candidate| candidate.rel_path == path)
+        else {
+            continue;
+        };
+
+        let lines: Vec<&str> = file.content.lines().collect();
+        let mut hits: Vec<usize> = Vec::new();
+        for (index, line) in lines.iter().enumerate() {
+            if lens.markers.iter().any(|marker| line.contains(marker)) {
+                hits.push(index);
+            }
+        }
+        if hits.is_empty() {
+            continue;
+        }
+
+        // Merge neighbouring hits so one region is quoted once rather than three
+        // overlapping times.
+        let mut regions: Vec<(usize, usize)> = Vec::new();
+        for hit in hits {
+            let start = hit.saturating_sub(CONTEXT);
+            let end = (hit + CONTEXT).min(lines.len().saturating_sub(1));
+            match regions.last_mut() {
+                Some(last) if start <= last.1 + 1 => last.1 = end.max(last.1),
+                _ => regions.push((start, end)),
+            }
+        }
+
+        out.push_str(&format!("\n--- {path}\n"));
+        for (start, end) in regions {
+            if shown >= budget {
+                break;
+            }
+            for (offset, line) in lines[start..=end].iter().enumerate() {
+                out.push_str(&format!("{:>5}| {line}\n", start + offset + 1));
+            }
+            out.push_str("      ...\n");
+            shown += 1;
+        }
+    }
+
+    (out, shown)
+}
+
+/// Keeps only the files this lens has a reason to look at, and reports how many were
+/// dropped.
+///
+/// A file with none of the lens's markers cannot produce a finding for it, so paying
+/// a subagent to read it buys nothing. The saving is in the slice count: fewer files
+/// means fewer slices, and a slice is a whole subagent.
+fn narrow_to_signal(
+    inventory: &Inventory,
+    lens: &Lens,
+    files: Vec<String>,
+) -> (Vec<String>, usize) {
+    if lens.markers.is_empty() {
+        return (files, 0);
+    }
+    let before = files.len();
+    let kept: Vec<String> = files
+        .into_iter()
+        .filter(|entry| {
+            let path = entry.split(" (").next().unwrap_or(entry);
+            inventory
+                .files
+                .iter()
+                .find(|candidate| candidate.rel_path == path)
+                .is_some_and(|file| {
+                    lens.markers
+                        .iter()
+                        .any(|marker| file.content.contains(marker))
+                })
+        })
+        .collect();
+    let dropped = before - kept.len();
+    (kept, dropped)
 }
 
 fn relevant_files(inventory: &Inventory, lens: &Lens, forbidden: &[String]) -> Vec<String> {
@@ -632,9 +783,13 @@ async fn verify(
     options: &AiOptions,
     findings: Vec<Finding>,
 ) -> (Vec<Finding>, f64, Vec<String>) {
-    let (mut candidates, mut passthrough): (Vec<Finding>, Vec<Finding>) = findings
-        .into_iter()
-        .partition(|finding| finding.origin == Origin::Ai && finding.severity <= Severity::High);
+    // Verify what would block a pipeline, not everything severe. A medium finding
+    // that nothing gates on does not justify two more subagents, and the confidence
+    // it carries already says it is unconfirmed.
+    let (mut candidates, mut passthrough): (Vec<Finding>, Vec<Finding>) =
+        findings.into_iter().partition(|finding| {
+            finding.origin == Origin::Ai && finding.severity <= options.verify_above
+        });
 
     if candidates.is_empty() {
         return (passthrough, 0.0, Vec::new());
@@ -818,11 +973,19 @@ pub async fn review(inventory: &Inventory, options: &AiOptions) -> AiOutcome {
     let recon_map: Option<Arc<str>> = recon_map.map(|map| Arc::from(map.as_str()));
     early_warnings.extend(recon_warnings);
 
+    let mut dropped_files = 0usize;
     let jobs: Vec<Job> = selected
         .iter()
         .flat_map(|lens| {
-            let files = relevant_files(inventory, lens, &options.forbidden_paths);
-            shard_files(files)
+            let all = relevant_files(inventory, lens, &options.forbidden_paths);
+            // Filtering by marker per *file* rather than per slice is what removes
+            // subagents. Gating whole slices saved almost nothing: at a hundred and
+            // eighty files a slice, one marker is always somewhere in it. Dropping the
+            // files that hold no marker shrinks the slice count instead — on a
+            // 7000-file monorepo, nineteen subagents become eleven.
+            let narrowed = narrow_to_signal(inventory, lens, all);
+            dropped_files += narrowed.1;
+            shard_files(narrowed.0)
                 .into_iter()
                 .filter(|(_, files)| !files.is_empty())
                 .map(|(shard, files)| Job { lens, shard, files })
@@ -835,6 +998,13 @@ pub async fn review(inventory: &Inventory, options: &AiOptions) -> AiOutcome {
             warnings: vec!["No File Matched Any AI Lens".to_string()],
             ..Default::default()
         };
+    }
+
+    if dropped_files > 0 {
+        early_warnings.push(format!(
+            "{dropped_files} File-Lens Pairs Were Dropped Because The File Holds None Of That \
+Lens's Markers, Which Is What Keeps The Subagent Count Down"
+        ));
     }
 
     emit(
@@ -889,13 +1059,17 @@ pub async fn review(inventory: &Inventory, options: &AiOptions) -> AiOutcome {
                 if overridden && options.verbose {
                     eprintln!("   lens {:<9} using local skill", lens.name);
                 }
+                let (excerpts, regions) =
+                    evidence_excerpts(inventory, lens, files, EXCERPT_BUDGET);
                 let mut text = prompt::build_lens_prompt(
                     lens,
                     &skill,
                     &inventory.stack,
                     files,
                     recon_map.as_deref(),
+                    &excerpts,
                 );
+                let _ = regions;
                 if !job.shard.is_empty() {
                     // Several subagents share this lens. Each one owns its slice for
                     // reporting, but may Grep anywhere: a control that protects the
@@ -933,6 +1107,8 @@ control exists — but do not report defects that belong to another slice.\n",
                             findings: findings.len(),
                             cost_usd: 0.0,
                             cached: true,
+                            tokens: 0,
+                            turns: 0,
                         },
                     );
                     return (lens.name, findings, 0.0, None);
@@ -969,6 +1145,8 @@ control exists — but do not report defects that belong to another slice.\n",
                                 findings: findings.len(),
                                 cost_usd: invocation.cost_usd,
                                 cached: false,
+                                tokens: invocation.usage.total(),
+                                turns: invocation.turns,
                             },
                         );
                         (lens.name, findings, invocation.cost_usd, None)
@@ -1297,5 +1475,121 @@ mod shard_tests {
             first.iter().all(|path| path.starts_with("apps/")),
             "the first slice must not mix top-level directories: {first:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod cost_tests {
+    use super::*;
+    use crate::discover::SourceFile;
+    use crate::model::StackProfile;
+    use std::path::PathBuf;
+
+    fn file(path: &str, content: &str) -> SourceFile {
+        SourceFile {
+            rel_path: path.to_string(),
+            abs_path: PathBuf::from(path),
+            language: "Python",
+            size: content.len() as u64,
+            lines: content.lines().count(),
+            content: content.to_string(),
+            truncated: false,
+        }
+    }
+
+    fn inventory(files: Vec<SourceFile>) -> Inventory {
+        Inventory {
+            root: PathBuf::from("/tmp/x"),
+            files,
+            stack: StackProfile::default(),
+            manifests: Vec::new(),
+            skipped_large: 0,
+            skipped_large_names: Vec::new(),
+        }
+    }
+
+    fn lens() -> Lens {
+        Lens {
+            name: "test",
+            skill: "",
+            hints: &[],
+            markers: &["current_user", "get_object_or_404"],
+        }
+    }
+
+    #[test]
+    fn a_file_without_a_marker_is_dropped_and_one_with_it_is_kept() {
+        let store = inventory(vec![
+            file("app/util.py", "def add(a, b):\n    return a + b\n"),
+            file("app/view.py", "obj = get_object_or_404(Order, pk=pk)\n"),
+        ]);
+        let (kept, dropped) = narrow_to_signal(
+            &store,
+            &lens(),
+            vec!["app/util.py".to_string(), "app/view.py".to_string()],
+        );
+        assert_eq!(kept, vec!["app/view.py".to_string()]);
+        assert_eq!(
+            dropped, 1,
+            "the file with no marker cannot produce a finding"
+        );
+    }
+
+    #[test]
+    fn a_lens_without_markers_keeps_everything() {
+        let store = inventory(vec![file("app/util.py", "x = 1\n")]);
+        let bare = Lens {
+            name: "bare",
+            skill: "",
+            hints: &[],
+            markers: &[],
+        };
+        let (kept, dropped) = narrow_to_signal(&store, &bare, vec!["app/util.py".to_string()]);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(dropped, 0);
+    }
+
+    #[test]
+    fn excerpts_carry_the_matching_line_with_context_and_a_line_number() {
+        let body = (1..=20)
+            .map(|n| {
+                if n == 10 {
+                    "    obj = get_object_or_404(Order, pk=pk)".to_string()
+                } else {
+                    format!("    x{n} = {n}")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let store = inventory(vec![file("app/view.py", &body)]);
+        let (text, regions) = evidence_excerpts(&store, &lens(), &["app/view.py".to_string()], 10);
+
+        assert_eq!(regions, 1);
+        assert!(text.contains("app/view.py"));
+        assert!(
+            text.contains("   10| "),
+            "the hit keeps its line number: {text}"
+        );
+        assert!(text.contains("    7| "), "three lines of context above");
+        assert!(text.contains("   13| "), "three lines of context below");
+        assert!(!text.contains("    6| "), "and no more than that");
+    }
+
+    #[test]
+    fn neighbouring_hits_are_quoted_once() {
+        let body = "a\ncurrent_user\nb\ncurrent_user\nc\n";
+        let store = inventory(vec![file("app/view.py", body)]);
+        let (_, regions) = evidence_excerpts(&store, &lens(), &["app/view.py".to_string()], 10);
+        assert_eq!(regions, 1, "two hits three lines apart are one region");
+    }
+
+    #[test]
+    fn the_excerpt_budget_is_respected() {
+        let body = (0..200)
+            .map(|n| format!("current_user  # {n}\n\n\n\n\n\n\n\n"))
+            .collect::<String>();
+        let store = inventory(vec![file("app/view.py", &body)]);
+        let (_, regions) = evidence_excerpts(&store, &lens(), &["app/view.py".to_string()], 5);
+        assert!(regions <= 5, "budget honoured, got {regions}");
     }
 }

@@ -342,7 +342,7 @@ a new version."
         for status in base_statuses.difference(&head_statuses) {
             findings.push(breaking(
                 "DB-API-005",
-                format!("Cavab kodu silinib: {name} — {status}"),
+                format!("Response Code Removed: {name} — {status}"),
                 spec,
                 format!("The `{status}` response is no longer returned."),
                 "Keep the old status code; client error handling depends on it.".to_string(),

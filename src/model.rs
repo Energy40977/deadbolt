@@ -127,10 +127,10 @@ impl Category {
             Category::SupplyChain => "Dependencies",
             Category::Infrastructure => "Infrastructure",
             Category::Frontend => "Frontend",
-            Category::Mobile => "Mobil",
+            Category::Mobile => "Mobile",
             Category::Database => "Database",
             Category::ApiContract => "API Contract",
-            Category::Configuration => "Konfiqurasiya",
+            Category::Configuration => "Configuration",
             Category::Compliance => "Standards",
         }
     }
@@ -482,9 +482,9 @@ impl RiskSignal {
             RiskSignal::InstallScript => "install script",
             RiskSignal::PossibleTyposquat => "possible typosquat",
             RiskSignal::NetworkAtRuntime => "network at runtime",
-            RiskSignal::TelemetryDetected => "telemetriya izi",
+            RiskSignal::TelemetryDetected => "telemetry present",
             RiskSignal::RestrictiveLicense => "restrictive licence",
-            RiskSignal::UnknownLicense => "lisenziya bilinmir",
+            RiskSignal::UnknownLicense => "license unknown",
             RiskSignal::VeryNewPackage => "very new package",
             RiskSignal::LowAdoption => "low adoption",
         }
@@ -546,9 +546,9 @@ impl DataCollection {
     pub fn label(self) -> &'static str {
         match self {
             DataCollection::Yes => "yes",
-            DataCollection::Optional => "opsional",
+            DataCollection::Optional => "optional",
             DataCollection::No => "xeyr",
-            DataCollection::Unknown => "bilinmir",
+            DataCollection::Unknown => "unknown",
         }
     }
 

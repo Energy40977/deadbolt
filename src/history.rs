@@ -75,7 +75,7 @@ struct Commit {
 impl Default for Commit {
     fn default() -> Self {
         Self {
-            sha: "bilinmir".to_string(),
+            sha: "unknown".to_string(),
             author: String::new(),
             date: String::new(),
             subject: String::new(),
@@ -184,7 +184,7 @@ pub fn scan(root: &Path, options: &Options) -> Result<(Vec<Finding>, Vec<String>
     let mut findings: Vec<Finding> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     let mut commit = Commit::default();
-    let mut file = String::from("bilinmir");
+    let mut file = String::from("unknown");
 
     for line in body.lines() {
         if let Some(rest) = line.strip_prefix('\0') {

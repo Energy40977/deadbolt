@@ -52,13 +52,10 @@ fn sidebar(report: &AuditReport) -> String {
     if !report.packs.is_empty() {
         links.push(("#compliance", "Standards Compliance".to_string()));
     }
-    links.push((
-        "#tapintilar",
-        format!("Findings ({})", report.findings.len()),
-    ));
+    links.push(("#findings", format!("Findings ({})", report.findings.len())));
     if !report.packages.is_empty() {
         links.push((
-            "#paketler",
+            "#dependencies",
             format!("Dependencies ({})", report.packages.len()),
         ));
     }
@@ -1046,7 +1043,7 @@ fn finding_block(finding: &Finding, index: usize) -> String {
         },
         chain = chain(finding),
         impact = field("What Can Happen", &finding.impact),
-        scenario = field("Konkret ssenari", &finding.scenario),
+        scenario = field("Concrete Scenario", &finding.scenario),
         remediation = steps(&finding.remediation),
         references = references.join(" · "),
         hint = hint,

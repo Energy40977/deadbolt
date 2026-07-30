@@ -44,7 +44,7 @@ fn patterns() -> Option<Patterns> {
         ],
         auth: vec![
             ("Depends", Regex::new(r"Depends\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)").ok()?),
-            ("dekorator", Regex::new(r"@(login_required|permission_required|requires_auth|authenticated|admin_required|jwt_required)").ok()?),
+            ("decorator", Regex::new(r"@(login_required|permission_required|requires_auth|authenticated|admin_required|jwt_required)").ok()?),
             ("permission_classes", Regex::new(r"permission_classes\s*=\s*\[([^\]]+)\]").ok()?),
             ("guard", Regex::new(r"(?i)@(UseGuards|PreAuthorize|Secured|RolesAllowed)\s*\(([^)]*)").ok()?),
             ("middleware", Regex::new(r"(?i)\b(authMiddleware|requireAuth|ensureAuth|verifyToken|isAuthenticated)\b").ok()?),
@@ -182,7 +182,7 @@ pub fn render_markdown(endpoints: &[Endpoint]) -> String {
     }
     let summary = summarize(endpoints);
 
-    let mut out = String::from("## Avtorizasiya matrisi\n\n");
+    let mut out = String::from("## Authorisation Matrix\n\n");
     out.push_str(&format!(
         "{} endpoints detected · **{} with no stated requirement** · **{} accept an object \
 identifier and state no requirement** (IDOR suspects).\n\n",
@@ -341,7 +341,7 @@ def c(id: int, user=Depends(auth)):
         let body = "@app.get(\"/x/{id}\")\ndef x(id: int):\n    pass\n";
         let markdown = render_markdown(&extract(&inventory("app/api.py", body)));
         assert!(markdown.contains("⚠️"));
-        assert!(markdown.contains("Avtorizasiya matrisi"));
+        assert!(markdown.contains("Authorisation Matrix"));
     }
 
     #[test]

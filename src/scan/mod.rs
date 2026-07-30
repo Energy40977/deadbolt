@@ -819,9 +819,59 @@ message = f"DELETE requested by {user}"
 "#;
         assert!(
             !rules_hit("app/x.py", safe).contains(&"DB-INJ-001".to_string()),
-            "yalan pozitiv: {:?}",
+            "false positive: {:?}",
             rules_hit("app/x.py", safe)
         );
+    }
+
+    /// The regression this guards: the character class excluded both quote
+    /// characters, so an apostrophe-wrapped placeholder — the most common shape of
+    /// f-string SQL injection there is — ended the class before the `{` was seen.
+    #[test]
+    fn a_quoted_placeholder_inside_the_query_is_still_detected() {
+        for body in [
+            "return db.execute(f\"SELECT * FROM users WHERE name = '{name}'\")",
+            "db.execute(f'SELECT * FROM users WHERE name = \"{name}\"')",
+            "cur.execute(f\"DELETE FROM t WHERE k = '{k}' AND v = '{v}'\")",
+            "q = f\"UPDATE users SET email = '{email}' WHERE id = {uid}\"",
+        ] {
+            assert!(
+                rules_hit("app/x.py", body).contains(&"DB-INJ-001".to_string()),
+                "missed injection: {body}"
+            );
+        }
+    }
+
+    /// Prose is not a query. An error message can easily contain a SQL verb, a
+    /// clause word and a placeholder; a query begins with its verb, so that is what
+    /// separates the two.
+    #[test]
+    fn a_message_that_merely_mentions_sql_is_not_a_query() {
+        for body in [
+            "e = f\"could not DELETE record '{rid}' from the archive\"",
+            "e = f\"failed to UPDATE the profile of '{user}' where the tenant differs\"",
+            "e = f\"about to INSERT '{n}' rows into the staging table\"",
+            "e = f\"user '{name}' selected {count} items from the cart\"",
+        ] {
+            assert!(
+                !rules_hit("app/x.py", body).contains(&"DB-INJ-001".to_string()),
+                "prose reported as injection: {body}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_quoted_value_alone_does_not_make_a_query_injectable() {
+        for body in [
+            "db.execute(\"SELECT * FROM users WHERE name = 'admin'\")",
+            "db.execute(\"SELECT * FROM users WHERE name = %s\", (name,))",
+            "log.info(f\"user '{name}' deleted their account\")",
+        ] {
+            assert!(
+                !rules_hit("app/x.py", body).contains(&"DB-INJ-001".to_string()),
+                "false positive: {body}"
+            );
+        }
     }
 
     #[test]

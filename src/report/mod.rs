@@ -135,7 +135,7 @@ pub fn terminal(report: &AuditReport, color: bool, limit: usize) -> String {
             out.push_str(&wrap("      What Can Happen: ", &finding.impact));
         }
         if !finding.scenario.is_empty() {
-            out.push_str(&wrap("      Ssenari: ", &finding.scenario));
+            out.push_str(&wrap("      Scenario: ", &finding.scenario));
         }
         if !finding.remediation.is_empty() {
             out.push_str(&wrap("      How To Fix It: ", &finding.remediation));
@@ -305,7 +305,7 @@ pub fn markdown(report: &AuditReport) -> String {
                 out.push_str(&format!("- **What Can Happen:** {}\n", finding.impact));
             }
             if !finding.scenario.is_empty() {
-                out.push_str(&format!("- **Ssenari:** {}\n", finding.scenario));
+                out.push_str(&format!("- **Scenario:** {}\n", finding.scenario));
             }
             if !finding.remediation.is_empty() {
                 out.push_str(&format!("- **How To Fix It:** {}\n", finding.remediation));

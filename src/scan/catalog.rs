@@ -255,7 +255,17 @@ pub const RULES: &[Rule] = &[
         description: "The query text is assembled with interpolation or concatenation.",
         impact: "SQL injection: the whole database can be read, modified or dropped, and authentication can be bypassed.",
         remediation: "Use parameterised queries or an ORM. User input never becomes part of the query text.",
-        pattern: r#"(?i)f["'][^"']*\b(?:SELECT|INSERT|UPDATE|DELETE|REPLACE)\b[^"']*\b(?:FROM|INTO|WHERE|SET|VALUES|JOIN|TABLE)\b[^"']*\{|f["'][^"']*\b(?:SELECT|INSERT|UPDATE|DELETE|REPLACE)\b[^"']*\{[^"']*\b(?:FROM|INTO|WHERE|SET|VALUES|JOIN|TABLE)\b|`[^`]*\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^`]*\b(?:FROM|INTO|WHERE|SET|VALUES|JOIN)\b[^`]*\$\{|`[^`]*\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^`]*\$\{[^`]*\b(?:FROM|INTO|WHERE|SET|VALUES|JOIN)\b|["'][^"']*\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^"']*\b(?:FROM|INTO|WHERE|SET|VALUES|JOIN)\b[^"']*["']\s*(?:%|\+)\s*[\w(]|\.(?:execute|executemany|query|raw|prepare)\s*\(\s*[\w.]+\s*[%+]\s*[\w(]"#,
+        // Two properties this pattern has to hold at once.
+        //
+        // Each alternative excludes only its OWN delimiter: a class excluding both
+        // quote characters missed the commonest shape there is —
+        // f"... WHERE name = '{name}'" — because the apostrophe around the
+        // placeholder ended the class before the placeholder was reached.
+        //
+        // And the verb is anchored to the start of the literal, because a query
+        // begins with its verb while prose does not: f"could not DELETE record
+        // '{rid}' from the archive" is an error message, not a query.
+        pattern: r#"(?i)f"\s*(?:SELECT|INSERT|UPDATE|DELETE|REPLACE)\b[^"]*\b(?:FROM|INTO|WHERE|SET|VALUES|JOIN|TABLE)\b[^"]*\{|f"\s*(?:SELECT|INSERT|UPDATE|DELETE|REPLACE)\b[^"]*\{[^"]*\b(?:FROM|INTO|WHERE|SET|VALUES|JOIN|TABLE)\b|f'\s*(?:SELECT|INSERT|UPDATE|DELETE|REPLACE)\b[^']*\b(?:FROM|INTO|WHERE|SET|VALUES|JOIN|TABLE)\b[^']*\{|f'\s*(?:SELECT|INSERT|UPDATE|DELETE|REPLACE)\b[^']*\{[^']*\b(?:FROM|INTO|WHERE|SET|VALUES|JOIN|TABLE)\b|`\s*(?:SELECT|INSERT|UPDATE|DELETE)\b[^`]*\b(?:FROM|INTO|WHERE|SET|VALUES|JOIN)\b[^`]*\$\{|`\s*(?:SELECT|INSERT|UPDATE|DELETE)\b[^`]*\$\{[^`]*\b(?:FROM|INTO|WHERE|SET|VALUES|JOIN)\b|"\s*(?:SELECT|INSERT|UPDATE|DELETE)\b[^"]*\b(?:FROM|INTO|WHERE|SET|VALUES|JOIN)\b[^"]*"\s*(?:%|\+)\s*[\w(]|'\s*(?:SELECT|INSERT|UPDATE|DELETE)\b[^']*\b(?:FROM|INTO|WHERE|SET|VALUES|JOIN)\b[^']*'\s*(?:%|\+)\s*[\w(]|\.(?:execute|executemany|query|raw|prepare)\s*\(\s*[\w.]+\s*[%+]\s*[\w(]"#,
         negate: Some(r"(?i)\?\s*\)|:\w+\b|\$\d|%s\b|%\(\w+\)s|bindParam|prepared|text\(\s*[\x22']"),
         languages: &[],
         scope: Scope::Code,

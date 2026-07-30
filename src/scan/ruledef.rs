@@ -256,7 +256,7 @@ name: internal
 description: "Company-specific rules"
 rules:
   - id: ACME-001
-    title: "Daxili servis tokeni kodda"
+    title: "Internal service token in code"
     category: secrets
     severity: critical
     pattern: 'ACME_TOKEN\s*=\s*["''][^"'']{8,}'

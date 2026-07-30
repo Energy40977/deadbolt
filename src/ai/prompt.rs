@@ -1,3 +1,4 @@
+use super::markers;
 use crate::model::StackProfile;
 
 pub const FINDING_CONTRACT: &str = r#"
@@ -29,7 +30,9 @@ RULES:
 4. Style, naming, formatting and comment remarks are NOT reported.
 5. Report the same problem once.
 6. At most 10 findings — pick the most severe.
-7. Make sure the file really exists; never invent a path.
+7. Reading budget: at most eight files. The excerpts above exist so you do not have
+   to go looking; spend a Read on confirming a specific line, not on browsing.
+8. Make sure the file really exists; never invent a path.
 "#;
 
 /// Rules of engagement, prepended to every lens prompt.
@@ -41,6 +44,14 @@ pub struct Lens {
     pub skill: &'static str,
     /// Path fragments that make this lens relevant. Empty = always relevant.
     pub hints: &'static [&'static str],
+    /// Substrings that indicate this lens has something to look at in a file.
+    ///
+    /// Two uses, both about not spending money. A slice containing none of them is
+    /// skipped entirely rather than handed to a subagent that will read its way to
+    /// the same conclusion. And the lines that do match are extracted and put in the
+    /// prompt, so the agent starts from evidence instead of paying to rediscover it —
+    /// the reading loop, not the prompt, is where the cost lives.
+    pub markers: &'static [&'static str],
 }
 
 /// Each lens is backed by a skill file: an authorized white-box pentest
@@ -53,26 +64,31 @@ pub const LENSES: &[Lens] = &[
         name: "authz",
         skill: include_str!("../../skills/authz.md"),
         hints: &[],
+        markers: markers::AUTHZ,
     },
     Lens {
         name: "data",
         skill: include_str!("../../skills/data.md"),
         hints: &[],
+        markers: markers::DATA,
     },
     Lens {
         name: "failure",
         skill: include_str!("../../skills/failure.md"),
         hints: &[],
+        markers: markers::FAILURE,
     },
     Lens {
         name: "crypto",
         skill: include_str!("../../skills/crypto.md"),
         hints: &[],
+        markers: markers::CRYPTO,
     },
     Lens {
         name: "migration",
         skill: include_str!("../../skills/migration.md"),
         hints: &["migration", "alembic", "migrate", "schema", ".sql"],
+        markers: markers::MIGRATION,
     },
     Lens {
         name: "api",
@@ -86,6 +102,7 @@ pub const LENSES: &[Lens] = &[
             "serializer",
             "handler",
         ],
+        markers: markers::API,
     },
     Lens {
         name: "frontend",
@@ -99,6 +116,7 @@ pub const LENSES: &[Lens] = &[
             "pages",
             "app/",
         ],
+        markers: markers::FRONTEND,
     },
     Lens {
         name: "infra",
@@ -115,6 +133,7 @@ pub const LENSES: &[Lens] = &[
             ".github/workflows",
             ".gitlab-ci",
         ],
+        markers: markers::INFRA,
     },
 ];
 
@@ -204,6 +223,7 @@ pub fn build_lens_prompt(
     stack: &StackProfile,
     files: &[String],
     recon: Option<&str>,
+    excerpts: &str,
 ) -> String {
     let listing = files.join("\n");
     let recon_block = match recon {
@@ -225,10 +245,11 @@ before reporting a finding built on it.\n\n{map}\n"
 {summary}{recon_block}
 ================ STARTING POINTS ================
 {listing}
-
-This list is only a starting point — use Grep and Glob to look anywhere in the
-repository. Work through the phases of the methodology in order: first learn the
-defensive standard of the project, then look for what departs from it.
+{excerpt_block}
+Work through the phases of the methodology in order: first learn the defensive
+standard of the project, then look for what departs from it. Read a file only when
+the excerpts above are not enough to decide — every file you read stays in context
+for the rest of this session, so reading widely is the expensive way to be wrong.
 
 {contract}
 
@@ -239,6 +260,15 @@ Return a JSON array only."#,
         summary = stack_summary(stack),
         recon_block = recon_block,
         listing = listing,
+        excerpt_block = if excerpts.trim().is_empty() {
+            String::new()
+        } else {
+            format!(
+                "\n================ LINES THAT MATCH THIS LENS ================\n\
+Extracted mechanically, with three lines of context. They are a starting point, not\n\
+a verdict: confirm the surrounding code before reporting anything built on them.\n{excerpts}"
+            )
+        },
         contract = FINDING_CONTRACT,
     )
 }

@@ -128,7 +128,7 @@ pub fn check(entries: &[Entry], current: &Entry, tolerance: f64) -> Verdict {
                 tolerance,
                 entry.at,
                 if entry.commit.is_empty() {
-                    "commit bilinmir".to_string()
+                    "commit unknown".to_string()
                 } else {
                     entry.commit.clone()
                 }

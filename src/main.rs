@@ -392,7 +392,7 @@ These Are Usually Minified Bundles Or Data Dumps. Raise \
     }
 
     progress.done(
-        "yoxlama bitdi",
+        "Scan Complete",
         &format!(
             "{} Findings ({} Rules)",
             findings.len(),
@@ -417,7 +417,8 @@ These Are Usually Minified Bundles Or Data Dumps. Raise \
     let mut packages = Vec::new();
     let mut escalate = Vec::new();
     let deps_enabled = options.settings.deps.enabled.unwrap_or(true) && options.run_deps;
-    if options.mode != "scan" && deps_enabled {
+    let ran_dependencies = options.mode != "scan" && deps_enabled;
+    if ran_dependencies {
         progress.phase("Dependencies (OSV.dev)");
         if options.verbose {
             eprintln!("-> 3/4 Dependency Research");
@@ -579,7 +580,8 @@ Notes, Not In `.deadbolt-baseline.json`.",
         .history
         .enabled
         .unwrap_or(options.mode == "audit");
-    if history_enabled && gitdiff::is_repository(&inventory.root) {
+    let ran_history = history_enabled && gitdiff::is_repository(&inventory.root);
+    if ran_history {
         if options.verbose {
             eprintln!("-> Git History Scan");
         }
@@ -636,6 +638,13 @@ Notes, Not In `.deadbolt-baseline.json`.",
         ai_options.forbidden_paths = options.settings.paths.ai_forbidden.to_vec();
         ai_options.cache = ai_config.cache.unwrap_or(true);
         ai_options.verify = options.verify && ai_config.verify.unwrap_or(true);
+        // Verification follows the gate: there is no point paying refuters to argue
+        // about a finding the run would not have failed on anyway.
+        ai_options.verify_above = match options.fail_on.threshold() {
+            gates::Threshold::At(severity) => severity,
+            gates::Threshold::Any => model::Severity::Info,
+            gates::Threshold::Never => model::Severity::Critical,
+        };
         ai_options.model = config::pick(
             options.model.clone(),
             ai_config.model.clone(),
@@ -716,6 +725,8 @@ Notes, Not In `.deadbolt-baseline.json`.",
                     findings,
                     cost_usd,
                     cached,
+                    tokens,
+                    turns,
                 } => {
                     if let Ok(slot) = bar.lock() {
                         if let Some(bar) = slot.as_ref() {
@@ -727,7 +738,13 @@ Notes, Not In `.deadbolt-baseline.json`.",
                         if cached {
                             "  (Cached, Free)".to_string()
                         } else {
-                            format!("  ${cost_usd:.2}")
+                            // Tokens and turns next to the price: the price alone never
+                            // said whether a slice was expensive because of its prompt
+                            // or because the agent read half the repository.
+                            format!(
+                                "  ${cost_usd:.2}  {:.0}k tokens  {turns} turns",
+                                tokens as f64 / 1000.0
+                            )
                         }
                     ));
                 }
@@ -834,7 +851,8 @@ Notes, Not In `.deadbolt-baseline.json`.",
 
     // Correlation runs after every producer, because a chain can join a static
     // rule to an AI finding to a dependency signal.
-    if options.settings.chains.enabled.unwrap_or(true) {
+    let ran_chains = options.settings.chains.enabled.unwrap_or(true);
+    if ran_chains {
         let chains = chain::correlate(&findings);
         if !chains.is_empty() {
             progress.log(&format!(
@@ -894,7 +912,17 @@ Notes, Not In `.deadbolt-baseline.json`.",
 
     if options.use_baseline {
         if let Some(accepted) = baseline::Baseline::load(&inventory.root) {
-            let filtered = baseline::apply(findings, Some(&accepted));
+            // Compliance is evaluated after this point, so this pass cannot speak
+            // to the freshness of a compliance entry.
+            let assessed = baseline::Assessed {
+                statics: true,
+                history: ran_history,
+                chains: ran_chains,
+                dependencies: ran_dependencies,
+                ai: !lenses_run.is_empty(),
+                compliance: false,
+            };
+            let filtered = baseline::apply(findings, Some(&accepted), assessed);
             findings = filtered.findings;
             if filtered.suppressed > 0 {
                 warnings.push(format!(
@@ -1086,7 +1114,7 @@ async fn execute(options: RunOptions) -> Result<std::process::ExitCode> {
     };
 
     if options.verbose {
-        eprintln!("→ 4/4 hesabat");
+        eprintln!("→ 4/4 Report");
     }
     let mut options = options;
     options.endpoints = endpoints;
@@ -1405,7 +1433,15 @@ fn emit(audit: &AuditReport, options: &RunOptions) -> Result<()> {
 fn dedupe(findings: Vec<Finding>) -> Vec<Finding> {
     let mut best: std::collections::HashMap<String, Finding> = std::collections::HashMap::new();
     for finding in findings {
-        let key = format!("{}|{}", finding.rule, finding.primary_location());
+        let key = match finding.evidence.first().and_then(|evidence| evidence.line) {
+            // A located finding: one report per rule per line, whichever producer
+            // raised it. Two producers describing the same line are one problem.
+            Some(_) => format!("{}|{}", finding.rule, finding.primary_location()),
+            // No line number — a whole-file or whole-project finding. The location
+            // cannot tell two of them apart, so the evidence has to: two different
+            // secrets in one file's history are two findings, not one.
+            None => finding.fingerprint(),
+        };
         match best.get(&key) {
             Some(existing) if existing.severity <= finding.severity => {}
             _ => {
@@ -1521,7 +1557,7 @@ fn pack_command(action: &cli::PackAction) -> Result<()> {
                     Err(error) => println!("  {name:<12} ERROR: {error:#}"),
                 }
             }
-            println!("\nXarici pack: --pack ./my-pack.yaml");
+            println!("\nExternal Pack: --pack ./my-pack.yaml");
         }
         cli::PackAction::Show { name } => {
             let pack = if name.ends_with(".yaml") || name.ends_with(".yml") {
@@ -1607,15 +1643,15 @@ async fn baseline_command(args: &cli::BaselineArgs, ctx: BaselineContext) -> Res
         findings.extend(outcome.findings);
     }
 
-    findings = dedupe(findings);
-
     // The baseline has to hold what the gate will see. Reachability and correlation
     // run after the rule engine in a normal run, so building the baseline from raw
     // scan output left every attack chain outside it: `baseline --write` followed by
     // `scan` still blocked, on findings the user had just accepted. The history scan
     // is the same story — it is a separate producer, and a secret that only exists in
     // past commits could never be accepted.
-    if settings.history.enabled.unwrap_or(true) && gitdiff::is_repository(&inventory.root) {
+    let ran_history =
+        settings.history.enabled.unwrap_or(true) && gitdiff::is_repository(&inventory.root);
+    if ran_history {
         let history_options = history::Options {
             max_commits: settings.history.max_commits.unwrap_or(1500),
             ..Default::default()
@@ -1637,25 +1673,46 @@ async fn baseline_command(args: &cli::BaselineArgs, ctx: BaselineContext) -> Res
     if settings.reach.enabled.unwrap_or(true) {
         reach::calibrate(&inventory, &mut findings);
     }
-    if settings.chains.enabled.unwrap_or(true) {
+    let ran_chains = settings.chains.enabled.unwrap_or(true);
+    if ran_chains {
         let chains = chain::correlate(&findings);
         findings.extend(chains);
     }
+    // Deduplicated last, exactly as a normal run does it. Deduplicating before the
+    // history walk left its findings unmerged here but merged there, so the file
+    // recorded entries the gate could never reproduce: one permanently "stale" entry
+    // that `--prune` removed and the next `--write` put straight back.
+    findings = dedupe(findings);
     model::sort_findings(&mut findings);
+
+    // This command runs the rule engine, history and correlation — never dependency
+    // research or compliance. Pruning has to know that, or `--prune` deletes every
+    // accepted dependency and compliance entry simply because nothing looked for one.
+    let assessed = baseline::Assessed {
+        statics: true,
+        history: ran_history,
+        chains: ran_chains,
+        dependencies: false,
+        ai: args.with_ai,
+        compliance: false,
+    };
 
     let existing = baseline::Baseline::load(&inventory.root);
     let stale = existing
         .as_ref()
-        .map(|current| current.stale(&findings).len())
+        .map(|current| current.stale(&findings, assessed).len())
         .unwrap_or(0);
 
     let mut record = baseline::Baseline::from_findings(&findings, &chrono::Utc::now().to_rfc3339());
 
-    if let (Some(current), false) = (&existing, args.prune) {
-        for fingerprint in &current.fingerprints {
-            record.fingerprints.insert(fingerprint.clone());
-        }
+    if let Some(current) = &existing {
         for entry in &current.entries {
+            // With --prune, an entry is dropped only when a detector that could
+            // have produced it ran and did not. Everything else is carried over.
+            if args.prune && assessed.covers(&entry.rule) {
+                continue;
+            }
+            record.fingerprints.insert(entry.fingerprint.clone());
             if !record
                 .entries
                 .iter()
@@ -2045,7 +2102,7 @@ Note: AI Lenses Use `AI-<name>`, Compliance Controls Use `<pack>:<id>`."
         if rule.skip_tests {
             "Skipped"
         } else {
-            "daxildir"
+            "Included"
         }
     );
 
@@ -2357,5 +2414,44 @@ mod format_precedence {
     fn unknown_config_names_fall_back_rather_than_producing_nothing() {
         let resolved = resolve_formats(&[], &["nonsense".to_string()], &[Format::Terminal]);
         assert_eq!(resolved, vec![Format::Terminal]);
+    }
+
+    /// The regression this guards: two different secrets in one file's history both
+    /// have no line number, so keying on rule+location collapsed them into one.
+    /// The baseline then held an entry the gate could never reproduce.
+    #[test]
+    fn two_distinct_whole_file_findings_are_not_collapsed() {
+        let make = |snippet: &str| {
+            model::Finding::builder(
+                "DB-HIST-001",
+                model::Category::Secrets,
+                model::Severity::Critical,
+            )
+            .title("Secret In History: src/a.rs")
+            .evidence(model::Evidence::new("src/a.rs", None, snippet))
+            .build()
+        };
+        let first = make("API_KEY = <redacted> @ abc123");
+        let second = make("DB_PASSWORD = <redacted> @ def456");
+        assert_ne!(first.fingerprint(), second.fingerprint());
+
+        let kept = dedupe(vec![first, second]);
+        assert_eq!(kept.len(), 2, "a distinct secret was silently dropped");
+    }
+
+    #[test]
+    fn the_same_rule_on_the_same_line_is_still_merged() {
+        let make = |severity: model::Severity| {
+            model::Finding::builder("DB-INJ-001", model::Category::Injection, severity)
+                .title("SQL Injection")
+                .evidence(model::Evidence::new("src/a.py", Some(7), "db.execute(q)"))
+                .build()
+        };
+        let kept = dedupe(vec![
+            make(model::Severity::Medium),
+            make(model::Severity::Critical),
+        ]);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].severity, model::Severity::Critical);
     }
 }

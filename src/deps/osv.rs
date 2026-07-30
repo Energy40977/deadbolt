@@ -121,7 +121,7 @@ pub async fn query_batch(packages: &[Package]) -> Result<HashMap<String, Vec<Vul
             .context("Could Not Send The OSV querybatch Request")?;
 
         if !response.status().is_success() {
-            anyhow::bail!("OSV cavab kodu: {}", response.status());
+            anyhow::bail!("OSV Responded With Status: {}", response.status());
         }
 
         let parsed: BatchResponse = response

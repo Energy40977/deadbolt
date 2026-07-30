@@ -9,6 +9,7 @@
 # executable code — these are data files read by the engine.
 ignore = [
   "src/scan/catalog.rs",
+  "src/ai/markers.rs",
   "skills/**",
   "packs/**",
 ]
