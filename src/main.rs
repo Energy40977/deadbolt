@@ -591,6 +591,8 @@ Notes, Not In `.deadbolt-baseline.json`.",
         };
         match history::scan(&inventory.root, &history_options) {
             Ok((history_findings, history_warnings)) => {
+                let history_findings =
+                    drop_ignored_paths(history_findings, &options.settings.paths.ignore);
                 if options.verbose {
                     eprintln!("   History-Only Secrets: {}", history_findings.len());
                 }
@@ -1289,6 +1291,28 @@ pub(crate) fn glob_any(patterns: &[String], path: &str) -> bool {
     patterns.iter().any(|pattern| glob_match(pattern, path))
 }
 
+/// Applies `paths.ignore` to findings that did not come from the inventory.
+///
+/// The configuration calls that list "never scanned", and the inventory filter above
+/// honours it — but the history scan walks git rather than the inventory, so the
+/// filter never reached it. The result was one path exempt in one phase and blocking
+/// in another: a deliberately vulnerable directory, excluded from the tree scan on
+/// purpose, still failed the build the moment it was committed. Filtering here rather
+/// than at the report keeps chains and compliance controls from being derived from a
+/// finding that was never in scope.
+fn drop_ignored_paths(findings: Vec<Finding>, ignore: &[String]) -> Vec<Finding> {
+    if ignore.is_empty() {
+        return findings;
+    }
+    findings
+        .into_iter()
+        .filter(|finding| match finding.evidence.first() {
+            Some(evidence) => !glob_any(ignore, &evidence.file),
+            None => true,
+        })
+        .collect()
+}
+
 /// `CLI > config > built-in default`.
 ///
 /// The CLI list is empty exactly when the flag was not passed — which is why
@@ -1658,6 +1682,7 @@ async fn baseline_command(args: &cli::BaselineArgs, ctx: BaselineContext) -> Res
         };
         match history::scan(&inventory.root, &history_options) {
             Ok((history_findings, history_warnings)) => {
+                let history_findings = drop_ignored_paths(history_findings, &settings.paths.ignore);
                 if verbose {
                     eprintln!("   history-only secrets: {}", history_findings.len());
                 }
@@ -2453,5 +2478,48 @@ mod format_precedence {
         ]);
         assert_eq!(kept.len(), 1);
         assert_eq!(kept[0].severity, model::Severity::Critical);
+    }
+
+    /// `paths.ignore` is documented as "never scanned", but the history scan walks
+    /// git instead of the inventory, so an ignored path was exempt in the tree pass
+    /// and blocking in the history pass.
+    #[test]
+    fn history_findings_honour_the_ignore_list() {
+        let make = |path: &str| {
+            model::Finding::builder(
+                "DB-HIST-002",
+                model::Category::Secrets,
+                model::Severity::Critical,
+            )
+            .title(format!("Private Key In History: {path}"))
+            .evidence(model::Evidence::new(path, None, "<redacted> @ abc123"))
+            .build()
+        };
+        let ignore = vec!["corpus/**".to_string()];
+
+        let kept = drop_ignored_paths(
+            vec![
+                make("corpus/secrets/signing_material.py"),
+                make("src/ai/mod.rs"),
+            ],
+            &ignore,
+        );
+
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].evidence[0].file, "src/ai/mod.rs");
+    }
+
+    #[test]
+    fn an_empty_ignore_list_keeps_every_history_finding() {
+        let finding = model::Finding::builder(
+            "DB-HIST-001",
+            model::Category::Secrets,
+            model::Severity::Critical,
+        )
+        .title("Secret In History: src/a.rs")
+        .evidence(model::Evidence::new("src/a.rs", None, "<redacted>"))
+        .build();
+
+        assert_eq!(drop_ignored_paths(vec![finding], &[]).len(), 1);
     }
 }
